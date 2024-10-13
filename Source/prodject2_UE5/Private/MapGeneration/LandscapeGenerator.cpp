@@ -56,6 +56,7 @@ void ALandscapeGenerator::CreateRandomLandscape(UProceduralMeshComponent *MeshCo
 
 	MeshComponent->CreateMeshSection(0, arrVertix, arrTriangles, TArray<FVector>(), arrUV, TArray<FColor>(),
 									 TArray<FProcMeshTangent>(), true);
+	MeshComponent->UpdateBounds();
 
 	(this->*ObjectCrate)();
 
