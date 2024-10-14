@@ -1,12 +1,35 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "ProceduralMeshComponent.h"
 #include "Math/UnrealMathUtility.h"
+#include "ProceduralMeshComponent.h"
 #include "LandscapeGenerator.generated.h"
+
+
+USTRUCT(BlueprintType)
+struct FMapObject {
+	GENERATED_BODY()
+
+  public:
+	// Число от 0 до 255
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Landscape|Objects")
+	uint8 GreyColor;
+
+	// Объект Actor
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Landscape|Objects")
+	TObjectPtr<AActor> Actor;
+
+	// Конструктор по умолчанию
+	FMapObject() : GreyColor(0), Actor(nullptr) {
+	}
+
+	// Конструктор с параметрами
+	FMapObject(const TObjectPtr<AActor> InActor, uint8 InGreyColor) : GreyColor(InGreyColor), Actor(InActor) {
+	}
+};
 
 UCLASS()
 class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
@@ -17,12 +40,27 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	// Sets default values for this actor's properties
 	ALandscapeGenerator();
 
+	
+
 	///////////////////////////////values////////////////////////////////
 	UPROPERTY(EditAnywhere, Category = "Poligons parametrs") int8 power2; // power of 2 fo width
 	UPROPERTY(EditAnywhere, Category = "Poligons parametrs") int32 poligonSize;
 	UPROPERTY(EditAnywhere, Category = "Poligons parametrs") double scaleUV;
 
+
+
+
+
 	////values for different landscape/////
+	/////borders func parametrs
+	///k1 - parameter before function
+	UPROPERTY(EditAnywhere, Category = "Landscape") int16 ka_min;
+	UPROPERTY(EditAnywhere, Category = "Landscape") int16 ka_max;
+
+	/// k2- parameter before argument
+	UPROPERTY(EditAnywhere, Category = "Landscape") int16 kf_min;
+	UPROPERTY(EditAnywhere, Category = "Landscape") int16 kf_max;
+
 	////Hills
 	UPROPERTY(EditAnywhere, Category = "Landscape|Hills landscape parametrs") int16 c1_min;
 	UPROPERTY(EditAnywhere, Category = "Landscape|Hills landscape parametrs") int16 c1_max;
@@ -32,9 +70,19 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	UPROPERTY(EditAnywhere, Category = "Landscape|Hills landscape parametrs") int16 H_min;
 	UPROPERTY(EditAnywhere, Category = "Landscape|Hills landscape parametrs") int16 H_max;
 
+
 	/////////////////events and functions////////////////////////////////
 	UFUNCTION(BlueprintCallable, Category = "Landscape")
 	void GenerateHills(UProceduralMeshComponent *MeshComponent); // create flat surface
+
+	UFUNCTION(BlueprintCallable, Category = "Landscape")
+	void ClearAll();
+
+	UFUNCTION(BlueprintCallable, Category = "Landscape|Bordes")
+	void BordersObjectsCreate(UProceduralMeshComponent *MeshComponent, const TArray<FMapObject> &Objects);
+
+	
+
 
   protected:
 	// Called when the game starts or when spawned
@@ -60,7 +108,7 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	int16 H1;
 	int16 H2;
 
-  public:
+  private:
 	void CreateRandomLandscape(UProceduralMeshComponent *MeshComponent,
 							   TArray<int32> (ALandscapeGenerator::*IndexFind)(int32 A, int32 B, int32 C, int32 D),
 							   void (ALandscapeGenerator::*StartPointsHights)(void),
@@ -76,6 +124,22 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	int32 MidlPointLineIndex(int32 A, int32 C); // function for find central vertix index on line
 												// can be only integer becorce square has n + 1 vertix, where n - power
 												// of 2 and return vertix always is node
+
+	/////////////////////////////////////Random Generates objects for all types
+	/// landscape//////////////////////////////////////////////////
+	int16 k1_f;
+	int16 k2_f;
+	int16 k1_a;
+	int16 k2_a;
+	
+	void CreateObject(TArray<FMapObject> &Objects, float (ALandscapeGenerator::*Function)(float x));
+
+	float Integrate(float point_a, float point_b, int16 n, float (ALandscapeGenerator::*Function)(float x));
+
+
+	///borders
+	float FunctionBorders(float x);
+
 
 	//////////////////////////////////////////////////////////specific
 	/// functions///////////////////////////////////////////////////////////////

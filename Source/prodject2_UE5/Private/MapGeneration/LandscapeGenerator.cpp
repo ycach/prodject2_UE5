@@ -1,10 +1,13 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "MapGeneration/LandscapeGenerator.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Async/Async.h"
 #include "Containers/Array.h"
+
+
+
+
 
 // Sets default values
 ALandscapeGenerator::ALandscapeGenerator() {
@@ -13,6 +16,12 @@ ALandscapeGenerator::ALandscapeGenerator() {
 
 void ALandscapeGenerator::BeginPlay() {
 	Super::BeginPlay();
+}
+
+void ALandscapeGenerator::ClearAll() {
+	arrVertix.Empty();
+	arrUV.Empty();
+	arrTriangles.Empty();
 }
 
 void ALandscapeGenerator::CreateRandomLandscape(UProceduralMeshComponent *MeshComponent,
@@ -59,15 +68,10 @@ void ALandscapeGenerator::CreateRandomLandscape(UProceduralMeshComponent *MeshCo
 	MeshComponent->UpdateBounds();
 
 	(this->*ObjectCrate)();
-
-	arrVertix.Empty();
-	arrUV.Empty();
-	arrTriangles.Empty();
 }
 
 //////////////////////////////////////////////////////////////////////////////////Dimond -
-/// Square////////////////////////////////////////////////////////////////////////////
-
+#pragma region Dimond-Square
 void ALandscapeGenerator::DiamondSquare(TArray<int32> (ALandscapeGenerator::*IndexFind)(int32 A, int32 B, int32 C,
 																						int32 D)) {
 	TArray<int32> arrA_result;
@@ -156,6 +160,71 @@ int32 ALandscapeGenerator::MidlPointSquareIndex(int32 A, int32 B) {
 int32 ALandscapeGenerator::MidlPointLineIndex(int32 point1, int32 point2) {
 	return (point2 - point1) / 2;
 }
+#pragma endregion
+
+#pragma region Random Generates objects for all types landscape
+#pragma region Borders
+void ALandscapeGenerator::BordersObjectsCreate(UProceduralMeshComponent *MeshComponent,
+											   const TArray<FMapObject> &Objects) {
+	k1_f = FMath::RandRange(kf_min, kf_max);
+	k2_f = FMath::RandRange(kf_min, kf_max);
+	k1_a = FMath::RandRange(ka_min, ka_max);
+	k2_a = FMath::RandRange(ka_min, ka_max);
+
+	float S =
+		Integrate(arrVertix[indexPointA].Y, arrVertix[indexPointB].Y, width, &ALandscapeGenerator::FunctionBorders);
+
+	TArray<FMapObject> ArrObjectsSpawn;
+	for (int32 i = 0; i < width; ++i) {
+		float y_i = arrVertix[indexPointA].Y + (arrVertix[indexPointB].Y - arrVertix[indexPointA].Y) * i / width;
+		float x_i = FunctionBorders(y_i);
+
+		// Создаем новый куб
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AActor *NewCube = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), FVector(x_i, y_i, 0.0f),
+														 FRotator::ZeroRotator, SpawnParams);
+
+		// Добавляем куб в массив
+		ArrObjectsSpawn.Add(FMapObject(NewCube, FMath::RandRange(0, 255)));
+	}
+	CreateObject(ArrObjectsSpawn, &ALandscapeGenerator::FunctionBorders);
+}
+
+void ALandscapeGenerator::CreateObject(TArray<FMapObject> &Objects, float (ALandscapeGenerator::*Function)(float x)) {
+	for (const FMapObject &Object : Objects) {
+		if (Object.Actor) {
+			// Устанавливаем позицию куба на процедурной сетке
+			float x = Object.Actor->GetActorLocation().X;
+			float y = Object.Actor->GetActorLocation().Y;
+			float z = (this->*Function)(x);
+			Object.Actor->SetActorLocation(FVector(0, 0, 0));
+		}
+	}
+}
+
+float ALandscapeGenerator::Integrate(float point_a, float point_b, int16 n,
+									 float (ALandscapeGenerator::*Function)(float x)) {
+	float h = (point_b - point_a) / n;
+	float integral = 0.5f * ((this->*Function)(point_a) + (this->*Function)(point_b));
+
+	for (int16 i = 1; i < n; ++i) {
+		float x_i = point_a + i * h;
+		integral += (this->*Function)(x_i);
+	}
+
+	integral *= h;
+	return integral;
+}
+
+float ALandscapeGenerator::FunctionBorders(float x) {
+	return k1_f * FMath::Sin(x / k1_a) + k2_f * FMath::Cos(x / k2_a);
+}
+#pragma endregion
+
+
+
+#pragma endregion
 
 ///////////////////////////////////////////////////////////////////////////////////Specific
 /// Landscape////////////////////////////////////////////////////////////////////////////
