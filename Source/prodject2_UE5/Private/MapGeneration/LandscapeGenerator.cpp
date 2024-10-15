@@ -5,10 +5,6 @@
 #include "Async/Async.h"
 #include "Containers/Array.h"
 
-
-
-
-
 // Sets default values
 ALandscapeGenerator::ALandscapeGenerator() {
 	PrimaryActorTick.bCanEverTick = true;
@@ -221,8 +217,6 @@ float ALandscapeGenerator::FunctionBorders(float x) {
 	return k1_f * FMath::Sin(x / k1_a) + k2_f * FMath::Cos(x / k2_a);
 }
 #pragma endregion
-
-
 
 #pragma endregion
 
