@@ -8,10 +8,7 @@
 #include "ProceduralMeshComponent.h"
 #include "LandscapeGenerator.generated.h"
 
-#pragma region MyRegion
-
-#pragma endregion
-
+#pragma region Structs
 USTRUCT(BlueprintType)
 struct FMapObject {
 	GENERATED_BODY()
@@ -23,16 +20,21 @@ struct FMapObject {
 
 	// Объект Actor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Landscape|Objects")
-	TObjectPtr<AActor> Actor;
+	TSubclassOf<AActor> Actor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Landscape|Objects")
+	int RadiusColision;
 
 	// Конструктор по умолчанию
 	FMapObject() : Chance(0), Actor(nullptr) {
 	}
 
 	// Конструктор с параметрами
-	FMapObject(const TObjectPtr<AActor> InActor, uint8 InChance) : Chance(InChance), Actor(InActor) {
+	FMapObject(const TSubclassOf<AActor> InActor, uint8 InChance) : Chance(InChance), Actor(InActor) {
 	}
 };
+
+#pragma endregion
 
 UCLASS()
 class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
@@ -70,14 +72,17 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 #pragma endregion
 #pragma region events and fubctions
 	/////////////////events and functions////////////////////////////////
-	UFUNCTION(BlueprintCallable, Category = "Landscape")
+	UFUNCTION(BlueprintCallable, Category = "Landscape|Hills")
 	void GenerateHills(UProceduralMeshComponent *MeshComponent); // create flat surface
 
-	UFUNCTION(BlueprintCallable, Category = "Landscape")
-	void ClearAll();
+	UFUNCTION(BlueprintCallable, Category = "Landscape|Hills")
+	void GenerateObjectsOnMap_Hills(int indentForBorders, const TArray<FMapObject> &Objects);
 
-	UFUNCTION(BlueprintCallable, Category = "Landscape|Bordes")
-	void BordersObjectsCreate(UProceduralMeshComponent *MeshComponent, const TArray<FMapObject> &Objects);
+	UFUNCTION(BlueprintCallable, Category = "Landscape")
+	void ClearFirst();
+
+	// UFUNCTION(BlueprintCallable, Category = "Landscape|Bordes")
+
 #pragma endregion
 #pragma endregion
   protected:
@@ -90,6 +95,7 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	TArray<FVector> arrVertix;
 	TArray<FVector2D> arrUV;
 	TArray<int32> arrTriangles;
+	TArray<AActor *> arrBorders;
 
 	int32 indexPointA;
 	int32 indexPointB;
@@ -116,12 +122,19 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 
 #pragma region functions
 	void CreateRandomLandscape(UProceduralMeshComponent *MeshComponent,
-							   TArray<int32> (ALandscapeGenerator::*IndexFind)(int32 A, int32 B, int32 C, int32 D),
-							   void (ALandscapeGenerator::*StartPointsHights)(void),
-							   void (ALandscapeGenerator::*ObjectCrate)(void));
+							   float (ALandscapeGenerator::*Function)(float x));
+
+	void BordersObjectsCreate(int indentForBorders, const TArray<FMapObject> &Objects,
+							  float (ALandscapeGenerator::*Function)(float x));
+
+	void CalculateNormals(const TArray<FVector> &Vertices, const TArray<int32> &Triangles, TArray<FVector> &Normals);
+
+	void CalculateTangents(const TArray<FVector> &Vertices, const TArray<int32> &Triangles,
+						   const TArray<FVector> &Normals, const TArray<FVector2D> &UV0,
+						   TArray<FProcMeshTangent> &Tangents);
 
 	// Functions for algorithm dimond - square
-	void DiamondSquare(TArray<int32> (ALandscapeGenerator::*IndexFind)(int32 A, int32 B, int32 C, int32 D));
+	void DiamondSquare(float (ALandscapeGenerator::*Function)(float x));
 
 	int32 MidlPointSquareIndex(int32 A, int32 C); // functionn for find midl vertix index in array of vertix
 												  // can be only i  nteger becorce square has n + 1 vertix, where n -
@@ -131,9 +144,22 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 												// can be only integer becorce square has n + 1 vertix, where n - power
 												// of 2 and return vertix always is node
 
-	void CreateObject(TArray<FMapObject> &Objects, float (ALandscapeGenerator::*Function)(float x));
+	void CreateObject(const TArray<FMapObject> &Objects, float (ALandscapeGenerator::*Function)(float x));
+	void SpawnObjectsBetweenVertices(const FVector &Start, const FVector &End, TArray<FMapObject> Object);
+	TArray<TArray<FVector>> NodesYPoints(float (ALandscapeGenerator::*Function)(float x));
+	float ZCoordinateFind(FVector point, bool bOy_true);
 
-	float Integrate(float point_a, float point_b, int16 n, float (ALandscapeGenerator::*Function)(float x));
+	TArray<int32> GenerationHeights(int32 A, int32 B, int32 C, int32 D,
+									float (ALandscapeGenerator::*Function)(float x));
+
+	void GenerationHeightsInPeacks(
+		float (ALandscapeGenerator::*Function)(float x)); // function for find all indexes for one tick algorithm
+														  // dimonnd - square for
+														  // hills
+														  //  indexes: midl, top, right, left, bot
+	//!!!				  // must be clear in faunctions abroad!
+	// retutn arr: a - 0, b - 1, c - 2 d - 3, mid - 4
+	// left - 5, top - 6, right - 7, bot - 8
 
 	/// borders
 	float FunctionBorders(float x);
@@ -141,15 +167,6 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	//////////////////////////////////////////////////////////specific
 	/// functions///////////////////////////////////////////////////////////////
 
-	TArray<int32> GenerationHillsHeights(int32 A, int32 B, int32 C, int32 D);
-
-	void GenerationHeightsInPeacksHills(); // function for find all indexes for one tick algorithm dimonnd - square for
-										   // hills
-										   //  indexes: midl, top, right, left, bot
-	//!!!				  // must be clear in faunctions abroad!
-	// retutn arr: a - 0, b - 1, c - 2 d - 3, mid - 4
-	// left - 5, top - 6, right - 7, bot - 8
-
-	void GenerationMapObjects();
+	float FunctionHillsHeights(float point);
 #pragma endregion
 };
