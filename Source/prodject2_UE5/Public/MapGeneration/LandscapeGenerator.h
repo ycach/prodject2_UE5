@@ -25,12 +25,39 @@ struct FMapObject {
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Landscape|Objects")
 	int RadiusColision;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Landscape|Objects")
+	bool RotationWithMesh;
+
 	// Конструктор по умолчанию
 	FMapObject() : Chance(0), Actor(nullptr) {
 	}
 
 	// Конструктор с параметрами
 	FMapObject(const TSubclassOf<AActor> InActor, uint8 InChance) : Chance(InChance), Actor(InActor) {
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FObjectThatHaveLocation {
+	GENERATED_BODY()
+
+  public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Landscape|Objects")
+	FVector Location;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Landscape|Objects")
+	FRotator Rotation;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Landscape|Objects")
+	TSubclassOf<AActor> Object;
+
+	FActorSpawnParameters SpawnParams;
+	// Конструктор по умолчанию
+	FObjectThatHaveLocation() : Location(FVector::ZeroVector), Rotation(FRotator::ZeroRotator), Object(nullptr){
+	}
+
+	// Конструктор с параметрами
+	FObjectThatHaveLocation(FVector location, FRotator rotation, TSubclassOf<AActor> actor,
+							FActorSpawnParameters spawnParams)
+		: Location(location), Rotation(rotation), Object(actor), SpawnParams(spawnParams) {
 	}
 };
 
@@ -44,6 +71,10 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
   public:
 	// Sets default values for this actor's properties
 	ALandscapeGenerator();
+#pragma region DEBUG_BP_Functions
+	UFUNCTION(BlueprintCallable, Category = "Landscape|DEBUG")
+	void Debug_BordersSpawn(bool bAB_spawn, bool bAC_spawn, bool bBD_spawn, bool bCD_spawn);
+#pragma endregion
 
 #pragma region Blueprint vision
 #pragma region values
@@ -95,7 +126,7 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	TArray<FVector> arrVertix;
 	TArray<FVector2D> arrUV;
 	TArray<int32> arrTriangles;
-	TArray<AActor *> arrBorders;
+	TArray<TArray<FObjectThatHaveLocation>> arrBorders;
 
 	int32 indexPointA;
 	int32 indexPointB;
@@ -118,6 +149,9 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	int16 k2_f;
 	int16 k1_a;
 	int16 k2_a;
+
+	FRandomStream RandomStream;
+	
 #pragma endregion
 
 #pragma region functions
@@ -144,10 +178,11 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 												// can be only integer becorce square has n + 1 vertix, where n - power
 												// of 2 and return vertix always is node
 
-	void CreateObject(const TArray<FMapObject> &Objects, float (ALandscapeGenerator::*Function)(float x));
-	void SpawnObjectsBetweenVertices(const FVector &Start, const FVector &End, TArray<FMapObject> Object);
+	void FindBordersObjectCoordinate(const FVector &Start, const FVector &End, TArray<FMapObject> Objects,
+									 TArray<FObjectThatHaveLocation> *result);
 	TArray<TArray<FVector>> NodesYPoints(float (ALandscapeGenerator::*Function)(float x));
 	float ZCoordinateFind(FVector point, bool bOy_true);
+	void SpawnObject(TArray<FObjectThatHaveLocation>);
 
 	TArray<int32> GenerationHeights(int32 A, int32 B, int32 C, int32 D,
 									float (ALandscapeGenerator::*Function)(float x));

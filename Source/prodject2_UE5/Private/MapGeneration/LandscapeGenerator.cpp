@@ -8,6 +8,7 @@
 // Sets default values
 ALandscapeGenerator::ALandscapeGenerator() {
 	PrimaryActorTick.bCanEverTick = true;
+	RandomStream.GenerateNewSeed();
 }
 
 void ALandscapeGenerator::BeginPlay() {
@@ -19,7 +20,7 @@ void ALandscapeGenerator::ClearFirst() {
 	arrUV.Empty();
 	arrTriangles.Empty();
 }
-#pragma region Procedural mesh create
+#pragma region ObjectsSpawn
 void ALandscapeGenerator::CreateRandomLandscape(UProceduralMeshComponent *MeshComponent,
 												float (ALandscapeGenerator::*Function)(float x)) {
 	width = pow(2, power2) + 1;
@@ -136,6 +137,13 @@ void ALandscapeGenerator::CalculateTangents(const TArray<FVector> &Vertices, con
 	}
 }
 
+void ALandscapeGenerator::SpawnObject(TArray<FObjectThatHaveLocation> arrayObjects) {
+	for (int i = 0; i < arrayObjects.Num(); i++) {
+		GetWorld()->SpawnActor<AActor>(arrayObjects[i].Object, arrayObjects[i].Location, arrayObjects[i].Rotation,
+									   arrayObjects[i].SpawnParams);
+	}
+}
+
 #pragma endregion
 //////////////////////////////////////////////////////////////////////////////////Dimond -
 #pragma region Dimond -Square
@@ -240,47 +248,75 @@ void ALandscapeGenerator::BordersObjectsCreate(int Spacing, const TArray<FMapObj
 
 	auto arrayNodes = NodesYPoints(Function);
 
+	TArray<TFuture<void>> Futures;
+	TArray<FObjectThatHaveLocation> AB_objects;
+	TArray<FObjectThatHaveLocation> AC_objects;
+	TArray<FObjectThatHaveLocation> BD_objects;
+	TArray<FObjectThatHaveLocation> CD_objects;
+
 	for (int i = 0; i < width - Spacing; i += Spacing) {
+		Futures.Add(Async(EAsyncExecution::Thread, [this, i, Spacing, &arrayNodes, &Objects, &AB_objects, &AC_objects,
+													&BD_objects, &CD_objects]() {
+			// AB
+			FindBordersObjectCoordinate(arrayNodes[0][i], arrayNodes[0][i + Spacing], Objects, &AB_objects);
 
-		// AB
-		SpawnObjectsBetweenVertices(arrayNodes[0][i], arrayNodes[0][i + Spacing], Objects);
+			// AC
+			FindBordersObjectCoordinate(arrayNodes[1][i], arrayNodes[1][i + Spacing], Objects, &AC_objects);
 
-		// AC
-		SpawnObjectsBetweenVertices(arrayNodes[1][i], arrayNodes[1][i + Spacing], Objects);
+			// BD
+			FindBordersObjectCoordinate(arrayNodes[2][i], arrayNodes[2][i + Spacing], Objects, &BD_objects);
 
-		// BD
-		SpawnObjectsBetweenVertices(arrayNodes[2][i], arrayNodes[2][i + Spacing], Objects);
-
-		// CD
-		SpawnObjectsBetweenVertices(arrayNodes[3][i], arrayNodes[3][i + Spacing], Objects);
+			// CD
+			FindBordersObjectCoordinate(arrayNodes[3][i], arrayNodes[3][i + Spacing], Objects, &CD_objects);
+		}));
 	}
+	
+	// Дождитесь завершения всех задач
+	for (auto &Future : Futures) {
+		Future.Wait();
+	}
+	arrBorders.Add(AB_objects);
+	AB_objects.Empty();
+
+	arrBorders.Add(AC_objects);
+	AC_objects.Empty();
+
+	arrBorders.Add(BD_objects);
+	BD_objects.Empty();
+
+	arrBorders.Add(CD_objects);
+	CD_objects.Empty();
 }
 
-void ALandscapeGenerator::SpawnObjectsBetweenVertices(const FVector &Start, const FVector &End,
-													  TArray<FMapObject> Objects) {
+void ALandscapeGenerator::FindBordersObjectCoordinate(const FVector &Start, const FVector &End,
+													  TArray<FMapObject> Objects,
+													  TArray<FObjectThatHaveLocation> *result) {
 	float Spacing = 300;
 	FVector direction = (End - Start).GetSafeNormal();
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
 	for (float i = 0; i < poligonSize; i += Spacing) {
-
-		int8 randomValue = FMath::RandRange(0, 100);
-
-		// Переменная для хранения индекса
-		int8 selectedIndex = 0;
-
+		int8 randomValue = RandomStream.RandRange(0, 100); // Используем локальный генератор
+		int8 selectedIndex = -1;						   // Инициализируем индекс
+		
 		for (int j = 0; j < Objects.Num(); j++) {
-			// Проверяем шанс текущего объекта
 			if (randomValue <= Objects[j].Chance) {
 				selectedIndex = j;
 				break;
 			}
 		}
+
 		Spacing = Objects[selectedIndex].RadiusColision;
 		FVector location = Start + direction * i;
-		GetWorld()->SpawnActor<AActor>(Objects[selectedIndex].Actor, location, FRotator::ZeroRotator, SpawnParams);
-	}
 
+		FRotator rotation = FRotator::ZeroRotator;
+		
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		FObjectThatHaveLocation object_to_add =
+			FObjectThatHaveLocation(location, rotation, Objects[selectedIndex].Actor, SpawnParams);
+		TArray<FObjectThatHaveLocation> test;
+		result->Add(object_to_add);
+	}
 }
 TArray<TArray<FVector>> ALandscapeGenerator::NodesYPoints(float (ALandscapeGenerator::*Function)(float x)) {
 	TArray<FVector> AB_NodesPointsBorder;
@@ -343,7 +379,6 @@ float ALandscapeGenerator::ZCoordinateFind(FVector point, bool bOy_true) {
 float ALandscapeGenerator::FunctionBorders(float x) {
 	return k1_f * FMath::Sin(x / k1_a) + k2_f * FMath::Cos(x / k2_a) + k1_f + k2_f;
 }
-
 
 #pragma endregion
 
@@ -419,3 +454,16 @@ void ALandscapeGenerator::GenerateObjectsOnMap_Hills(int indentForBorders, const
 }
 #pragma endregion
 ///////////////////////////////////
+
+#pragma region DEBUG_Functions
+void ALandscapeGenerator::Debug_BordersSpawn(bool bAB_spawn, bool bAC_spawn, bool bBD_spawn, bool bCD_spawn) {
+	if (bAB_spawn)
+		SpawnObject(arrBorders[0]);
+	if (bAC_spawn)
+		SpawnObject(arrBorders[1]);
+	if (bBD_spawn)
+		SpawnObject(arrBorders[2]);
+	if (bCD_spawn)
+		SpawnObject(arrBorders[3]);
+}
+#pragma endregion
