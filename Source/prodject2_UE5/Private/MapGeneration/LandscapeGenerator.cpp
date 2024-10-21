@@ -5,9 +5,11 @@
 #include "Async/Async.h"
 #include "Containers/Array.h"
 
+#define DEBUG_BP_FUNCTIONS
+
 // Sets default values
 ALandscapeGenerator::ALandscapeGenerator() {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 	RandomStream.GenerateNewSeed();
 }
 
@@ -60,6 +62,52 @@ void ALandscapeGenerator::CreateRandomLandscape(UProceduralMeshComponent *MeshCo
 	MeshComponent->CreateMeshSection(0, arrVertix, arrTriangles, TArray<FVector>(), arrUV, TArray<FColor>(),
 									 TArray<FProcMeshTangent>(), true);
 	MeshComponent->UpdateBounds();
+}
+
+TArray<int32> ALandscapeGenerator::GenerationHeights(int32 A, int32 B, int32 C, int32 D,
+													 float (ALandscapeGenerator::*Function)(float x)) {
+
+	int32 half = MidlPointLineIndex(A, C);
+
+	int32 indexMid = MidlPointSquareIndex(A, B);
+	arrVertix[indexMid].Z = (this->*Function)(indexMid);
+
+	int32 indexLeft = half + A;
+
+	if (arrVertix[indexLeft].Z == 0)
+		arrVertix[indexLeft].Z = (this->*Function)(indexLeft);
+
+	int32 indexTop = indexMid - half;
+	if (arrVertix[indexTop].Z == 0)
+		arrVertix[indexTop].Z = (this->*Function)(indexTop);
+
+	int32 indexRight = B + half;
+	if (arrVertix[indexRight].Z == 0)
+		arrVertix[indexRight].Z = (this->*Function)(indexRight);
+
+	int32 indexBot = indexMid + half;
+	if (arrVertix[indexBot].Z == 0)
+		arrVertix[indexBot].Z = (this->*Function)(indexBot);
+
+	TArray<int32> arrReturn;
+	arrReturn.Add(A);
+	arrReturn.Add(B);
+	arrReturn.Add(C);
+	arrReturn.Add(D);
+	arrReturn.Add(indexMid);
+	arrReturn.Add(indexLeft);
+	arrReturn.Add(indexTop);
+	arrReturn.Add(indexRight);
+	arrReturn.Add(indexBot);
+
+	return arrReturn;
+}
+
+void ALandscapeGenerator::GenerationHeightsInPeacks(float (ALandscapeGenerator::*Function)(float x)) {
+	arrVertix[indexPointA].Z = (this->*Function)(indexPointA);
+	arrVertix[indexPointB].Z = (this->*Function)(indexPointB);
+	arrVertix[indexPointC].Z = (this->*Function)(indexPointC);
+	arrVertix[indexPointD].Z = (this->*Function)(indexPointD);
 }
 
 void ALandscapeGenerator::CalculateNormals(const TArray<FVector> &Vertices, const TArray<int32> &Triangles,
@@ -134,13 +182,6 @@ void ALandscapeGenerator::CalculateTangents(const TArray<FVector> &Vertices, con
 		FVector Bitangent = FVector::CrossProduct(Normal, Tangent);
 
 		Tangents[i] = FProcMeshTangent(Tangent, Bitangent.Z < 0.0f);
-	}
-}
-
-void ALandscapeGenerator::SpawnObject(TArray<FObjectThatHaveLocation> arrayObjects) {
-	for (int i = 0; i < arrayObjects.Num(); i++) {
-		GetWorld()->SpawnActor<AActor>(arrayObjects[i].Object, arrayObjects[i].Location, arrayObjects[i].Rotation,
-									   arrayObjects[i].SpawnParams);
 	}
 }
 
@@ -238,6 +279,104 @@ int32 ALandscapeGenerator::MidlPointLineIndex(int32 point1, int32 point2) {
 #pragma endregion
 
 #pragma region Random Generates objects for all types landscape
+
+bool ALandscapeGenerator::IsLocationValid(const FVector &Location,
+										  const TArray<FObjectThatHaveLocation> &SpawnedLocations,
+										  int32 RadiusColision) {
+	// Проверяем каждую уже размещённую локацию
+	for (const auto &SpawnedLocation : SpawnedLocations) {
+		float DistanceToSpawned = FVector::Dist(Location, SpawnedLocation.Location);
+
+		// Проверяем условия на расстояние
+		if (DistanceToSpawned < RadiusColision && DistanceToSpawned < SpawnedLocation.RadiusColision &&
+			FVector::Dist(FVector(Location.X, Location.Y, 0.0f), FVector(minX_inside, Location.Y, 0.0f)) <
+				RadiusColision &&
+			FVector::Dist(FVector(Location.X, Location.Y, 0.0f), FVector(maxX_inside, Location.Y, 0.0f)) <
+				RadiusColision &&
+			FVector::Dist(FVector(Location.X, Location.Y, 0.0f), FVector(Location.X, minY_inside, 0.0f)) <
+				RadiusColision &&
+			FVector::Dist(FVector(Location.X, Location.Y, 0.0f), FVector(Location.X, maxY_inside, 0.0f)) <
+				RadiusColision) {
+			return false; // Слишком близко к другому объекту
+		}
+	}
+	return true; // Место свободно
+}
+
+void ALandscapeGenerator::SpawnObject(TArray<FObjectThatHaveLocation> &arrayObjects) {
+	for (int i = 0; i < arrayObjects.Num(); i++) {
+		GetWorld()->SpawnActor<AActor>(arrayObjects[i].Object, arrayObjects[i].Location, arrayObjects[i].Rotation,
+									   arrayObjects[i].SpawnParams);
+	}
+}
+
+int8 ALandscapeGenerator::IndexOfObjectToGeneration(const TArray<FMapObject> &Objects) {
+	int8 randomValue = RandomStream.RandRange(0, 100);
+	int8 selectedIndex = -1;
+	for (int j = 0; j < Objects.Num(); j++) {
+		if (randomValue <= Objects[j].Chance) {
+			selectedIndex = j;
+			break;
+		}
+	}
+	return selectedIndex;
+}
+
+FRotator ALandscapeGenerator::FindRotationWithMesh(FVector location) {
+
+	return FRotator();
+}
+
+float ALandscapeGenerator::ZCoordinateFind(FVector point) {
+	// Вычисляем индексы вершин полигона
+	int32 Index_point1 = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * width;
+	int32 Index_point2 = Index_point1 + 1;
+	int32 Index_point3 = Index_point1 + width;
+	int32 Index_point4 = Index_point3 + 1;
+
+	// Вычисляем смещения
+	float step_to_x = point.X - arrVertix[Index_point1].X;
+	float step_to_y = point.Y - arrVertix[Index_point1].Y;
+
+	// Находим нормализованные направления
+	FVector direction13 = (arrVertix[Index_point3] - arrVertix[Index_point1]).GetSafeNormal();
+	FVector direction24 = (arrVertix[Index_point4] - arrVertix[Index_point2]).GetSafeNormal();
+
+	// Находим точки на гранях полигона
+	FVector vector13_point = arrVertix[Index_point1] + direction13 * step_to_x;
+	FVector vector24_point = arrVertix[Index_point2] + direction24 * step_to_x;
+
+	// Вычисляем направление между двумя точками
+	FVector direction = (vector24_point - vector13_point).GetSafeNormal();
+
+	// Находим конечную точку и возвращаем её Z-координату
+	FVector point_point = vector13_point + direction * step_to_y;
+
+	return point_point.Z;
+}
+
+float ALandscapeGenerator::ZCoordinateFind(FVector point, bool bOy_true) {
+	int32 FirstVertiIndex;
+	int32 SecondVertiIndex;
+	float step;
+	if ((int)point.X % poligonSize == 0 && (int)point.Y % poligonSize == 0) {
+		FirstVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * width;
+		return arrVertix[FirstVertiIndex].Z;
+	}
+	if (bOy_true) { // x - const before FUNCTION BORDERS USE
+		FirstVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * width;
+		SecondVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * (width + 1);
+		step = point.X - arrVertix[FirstVertiIndex].X;
+	} else { // y - const before FUNCTION BORDERS USE
+		FirstVertiIndex = (int)(point.X / poligonSize) * width + (int)(point.Y / poligonSize);
+		SecondVertiIndex = (int)(point.X / poligonSize) * width + (int)(point.Y / poligonSize) + 1;
+		step = point.Y - arrVertix[FirstVertiIndex].Y;
+	}
+	FVector direction = (arrVertix[SecondVertiIndex] - arrVertix[FirstVertiIndex]).GetSafeNormal();
+	FVector location = arrVertix[FirstVertiIndex] + direction * step;
+	return location.Z;
+}
+
 #pragma region Borders
 void ALandscapeGenerator::BordersObjectsCreate(int Spacing, const TArray<FMapObject> &Objects,
 											   float (ALandscapeGenerator::*Function)(float x)) {
@@ -246,7 +385,7 @@ void ALandscapeGenerator::BordersObjectsCreate(int Spacing, const TArray<FMapObj
 	k1_a = FMath::RandRange(ka_min, ka_max);
 	k2_a = FMath::RandRange(ka_min, ka_max);
 
-	auto arrayNodes = NodesYPoints(Function);
+	TArray<TArray<FVector>> arrayNodes = NodesYPoints(Function);
 
 	TArray<TFuture<void>> Futures;
 	TArray<FObjectThatHaveLocation> AB_objects;
@@ -270,11 +409,15 @@ void ALandscapeGenerator::BordersObjectsCreate(int Spacing, const TArray<FMapObj
 			FindBordersObjectCoordinate(arrayNodes[3][i], arrayNodes[3][i + Spacing], Objects, &CD_objects);
 		}));
 	}
-	
+
 	// Дождитесь завершения всех задач
 	for (auto &Future : Futures) {
 		Future.Wait();
 	}
+
+	AnalyzeBorderPoints(arrayNodes, maxY_inside, minY_inside, maxX_inside, minX_inside);
+	arrayNodes.Empty();
+
 	arrBorders.Add(AB_objects);
 	AB_objects.Empty();
 
@@ -289,32 +432,28 @@ void ALandscapeGenerator::BordersObjectsCreate(int Spacing, const TArray<FMapObj
 }
 
 void ALandscapeGenerator::FindBordersObjectCoordinate(const FVector &Start, const FVector &End,
-													  TArray<FMapObject> Objects,
+													  const TArray<FMapObject> &Objects,
 													  TArray<FObjectThatHaveLocation> *result) {
 	float Spacing = 300;
 	FVector direction = (End - Start).GetSafeNormal();
 
 	for (float i = 0; i < poligonSize; i += Spacing) {
-		int8 randomValue = RandomStream.RandRange(0, 100); // Используем локальный генератор
-		int8 selectedIndex = -1;						   // Инициализируем индекс
-		
-		for (int j = 0; j < Objects.Num(); j++) {
-			if (randomValue <= Objects[j].Chance) {
-				selectedIndex = j;
-				break;
-			}
-		}
+		// Используем локальный генератор
+		int8 selectedIndex = -1; // Инициализируем индекс
+		selectedIndex = IndexOfObjectToGeneration(Objects);
 
 		Spacing = Objects[selectedIndex].RadiusColision;
 		FVector location = Start + direction * i;
 
 		FRotator rotation = FRotator::ZeroRotator;
-		
+		if (Objects[selectedIndex].RotationWithMesh) {
+			rotation = FindRotationWithMesh(location);
+		}
+
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		FObjectThatHaveLocation object_to_add =
 			FObjectThatHaveLocation(location, rotation, Objects[selectedIndex].Actor, SpawnParams);
-		TArray<FObjectThatHaveLocation> test;
 		result->Add(object_to_add);
 	}
 }
@@ -326,24 +465,24 @@ TArray<TArray<FVector>> ALandscapeGenerator::NodesYPoints(float (ALandscapeGener
 	for (int32 i = 0; i < width; i++) {
 		// AB
 		FVector tempVector = FVector((this->*Function)(arrVertix[i].Y), arrVertix[i].Y, 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 1);
+		tempVector.Z = ZCoordinateFind(tempVector, 1); // 1
 		AB_NodesPointsBorder.Add(tempVector);
 
 		// CD
 		tempVector = FVector(arrVertix[indexPointD - 1].X - (this->*Function)(arrVertix[width * (width - 1) + i].Y),
 							 arrVertix[width * (width - 1) + i].Y, 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 1);
+		tempVector.Z = ZCoordinateFind(tempVector, 1); // 1
 		CD_NodesPointsBorder.Add(tempVector);
 
 		// AC
 		tempVector = FVector(arrVertix[i * width].X, (this->*Function)(arrVertix[i * width].X), 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 0);
+		tempVector.Z = ZCoordinateFind(tempVector, 0); // 0
 		AC_NodesPointsBorder.Add(tempVector);
 		// BD
 		tempVector =
 			FVector(arrVertix[(width - 1) + i * width].X,
 					arrVertix[indexPointB - 1].Y - (this->*Function)(arrVertix[(width - 1) + i * width].X), 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 0);
+		tempVector.Z = ZCoordinateFind(tempVector, 0); // 0
 		BD_NodesPointsBorder.Add(tempVector);
 	}
 	TArray<TArray<FVector>> result;
@@ -354,30 +493,135 @@ TArray<TArray<FVector>> ALandscapeGenerator::NodesYPoints(float (ALandscapeGener
 
 	return result;
 }
-float ALandscapeGenerator::ZCoordinateFind(FVector point, bool bOy_true) {
-	int32 FirstVertiIndex;
-	int32 SecondVertiIndex;
-	float step;
-	if ((int)point.X % poligonSize == 0 && (int)point.Y % poligonSize == 0) {
-		FirstVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * width;
-		return arrVertix[FirstVertiIndex].Z;
-	}
-	if (bOy_true) { // x - const before FUNCTION BORDERS USE
-		FirstVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * width;
-		SecondVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * (width + 1);
-		step = point.X - arrVertix[FirstVertiIndex].X;
-	} else { // y - const before FUNCTION BORDERS USE
-		FirstVertiIndex = (int)(point.X / poligonSize) * width + (int)(point.Y / poligonSize);
-		SecondVertiIndex = (int)(point.X / poligonSize) * width + (int)(point.Y / poligonSize) + 1;
-		step = point.Y - arrVertix[FirstVertiIndex].Y;
-	}
-	FVector direction = (arrVertix[SecondVertiIndex] - arrVertix[FirstVertiIndex]).GetSafeNormal();
-	FVector location = arrVertix[FirstVertiIndex] + direction * step;
-	return location.Z;
-}
 
 float ALandscapeGenerator::FunctionBorders(float x) {
 	return k1_f * FMath::Sin(x / k1_a) + k2_f * FMath::Cos(x / k2_a) + k1_f + k2_f;
+}
+
+void ALandscapeGenerator::AnalyzeBorderPoints(const TArray<TArray<FVector>> &BorderPoints, float &MaxY, float &MinY,
+											  float &MaxX, float &MinX) {
+	MinY = poligonSize * (width - 1) / 2;
+	MaxY = poligonSize * (width - 1) / 2;
+	MinY = poligonSize * (width - 1) / 2;
+	MinY = poligonSize * (width - 1) / 2;
+
+	// Проверяем границу AB
+	for (const FVector &Point : BorderPoints[0]) {
+		if (Point.X < MinX) {
+			MinX = Point.X;
+		}
+	}
+
+	// Проверяем границу AC
+	for (const FVector &Point : BorderPoints[1]) {
+		if (Point.Y < MinY) {
+			MinY = Point.Y;
+		}
+	}
+	// Проверяем границу BD
+	for (const FVector &Point : BorderPoints[2]) {
+		if (Point.Y > MaxY) {
+			MaxY = Point.Y;
+		}
+	}
+	// Проверяем границу CD
+	for (const FVector &Point : BorderPoints[3]) {
+		if (Point.X > MaxX) {
+			MaxX = Point.X;
+		}
+	}
+}
+
+#pragma endregion
+
+#pragma region ObjectsGenerate
+
+void ALandscapeGenerator::PlayeblMapObjectsGeneration(const TArray<FMapObject> &Objects, float densities, int8 delta) {
+
+	const int8 MaxTry = 10; // максимальное количество попыток сгенерировать точку с объектом
+
+	TArray<uint16> count_of_objects = FindProcentQualityObjects(Objects, densities);
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	for (int i = 0; i < Objects.Num(); i++) {
+
+		FRotator rotation = FRotator::ZeroRotator;
+
+		// Генерируем случайное количество объектов для данного типа
+
+		int downBordet_to_spawn = count_of_objects[i] - (int)(count_of_objects[i] * delta / 100);
+		int upBordet_to_spawn = count_of_objects[i] + (int)(count_of_objects[i] * delta / 100);
+
+		if (downBordet_to_spawn < 0) {
+			downBordet_to_spawn = 0;
+			if (upBordet_to_spawn == 0)
+				upBordet_to_spawn = 1;
+		}
+
+		count_of_objects[i] = RandomStream.RandRange(downBordet_to_spawn, upBordet_to_spawn);
+
+		int8 counter_of_notFind = 0;
+		for (int32 j = 0; j < count_of_objects[i]; j++) {
+
+			// определяем какой объект будет создан
+			int8 indexOfObject = IndexOfObjectToGeneration(Objects);
+
+			// Генерируем случайную точку внутри BoundingBox
+			FVector RandomLocation = GetRandomPointInPlaybleMap();
+			RandomLocation.Z = ZCoordinateFind(RandomLocation);
+
+			if (IsLocationValid(RandomLocation, SpawnedObjectsOnMap, Objects[indexOfObject].RadiusColision)) {
+				if (Objects[indexOfObject].RotationWithMesh) {
+					rotation = FindRotationWithMesh(RandomLocation);
+				}
+
+				FObjectThatHaveLocation object_to_add =
+					FObjectThatHaveLocation(RandomLocation, rotation, Objects[indexOfObject].Actor, SpawnParams);
+				SpawnedObjectsOnMap.Add(object_to_add);
+			}
+		}
+	}
+}
+
+TArray<uint16> ALandscapeGenerator::FindProcentQualityObjects(const TArray<FMapObject> &Objects, float &densities) {
+
+	float k = 0; // коээфициент относительной вместимости
+	float sum = 0;
+
+	TArray<uint16> RelativeDensities; // массив количества объектов для каждого типа
+
+	sum += FindSquare(Objects[0].RadiusColision) * Objects[0].Chance;
+	for (int i = 1; i < Objects.Num(); i++) {
+		sum += FindSquare(Objects[i].RadiusColision) * (Objects[i].Chance - Objects[i - 1].Chance);
+	}
+
+	k = (FindSquarePlaybleMap() * densities / 100.0f) / sum;
+
+	RelativeDensities.Add(Objects[0].Chance * k);
+	for (int i = 1; i < Objects.Num(); i++) {
+		RelativeDensities.Add((Objects[i].Chance - Objects[i - 1].Chance) * k);
+	}
+
+	return RelativeDensities;
+}
+
+float ALandscapeGenerator::FindSquare(float r) {
+	return FMath::Pow(r, 2.0f) * 3.2;
+}
+
+float ALandscapeGenerator::FindSquarePlaybleMap() {
+	return (maxY_inside - minY_inside) * (maxX_inside - minX_inside);
+}
+
+FVector ALandscapeGenerator::GetRandomPointInPlaybleMap() {
+	// Генерируем случайные координаты внутри ограничивающего прямоугольника
+
+	float RandomX = FMath::FRandRange(minX_inside, maxX_inside);
+	float RandomY = FMath::FRandRange(minY_inside, maxY_inside);
+
+	return FVector(RandomX, RandomY, 0.0f);
 }
 
 #pragma endregion
@@ -403,58 +647,17 @@ float ALandscapeGenerator::FunctionHillsHeights(float point) {
 	return H1 * FMath::Sin((float)((int)point % width) / C1) * FMath::Cos((float)(point / width) / C2) +
 		   H2 * FMath::Sin((float)(point / width) / C3) * FMath::Cos((float)((int)point % width) / C4);
 }
-TArray<int32> ALandscapeGenerator::GenerationHeights(int32 A, int32 B, int32 C, int32 D,
-													 float (ALandscapeGenerator::*Function)(float x)) {
 
-	int32 half = MidlPointLineIndex(A, C);
-
-	int32 indexMid = MidlPointSquareIndex(A, B);
-	arrVertix[indexMid].Z = (this->*Function)(indexMid);
-
-	int32 indexLeft = half + A;
-
-	if (arrVertix[indexLeft].Z == 0)
-		arrVertix[indexLeft].Z = (this->*Function)(indexLeft);
-
-	int32 indexTop = indexMid - half;
-	if (arrVertix[indexTop].Z == 0)
-		arrVertix[indexTop].Z = (this->*Function)(indexTop);
-
-	int32 indexRight = B + half;
-	if (arrVertix[indexRight].Z == 0)
-		arrVertix[indexRight].Z = (this->*Function)(indexRight);
-
-	int32 indexBot = indexMid + half;
-	if (arrVertix[indexBot].Z == 0)
-		arrVertix[indexBot].Z = (this->*Function)(indexBot);
-
-	TArray<int32> arrReturn;
-	arrReturn.Add(A);
-	arrReturn.Add(B);
-	arrReturn.Add(C);
-	arrReturn.Add(D);
-	arrReturn.Add(indexMid);
-	arrReturn.Add(indexLeft);
-	arrReturn.Add(indexTop);
-	arrReturn.Add(indexRight);
-	arrReturn.Add(indexBot);
-
-	return arrReturn;
-}
-
-void ALandscapeGenerator::GenerationHeightsInPeacks(float (ALandscapeGenerator::*Function)(float x)) {
-	arrVertix[indexPointA].Z = (this->*Function)(indexPointA);
-	arrVertix[indexPointB].Z = (this->*Function)(indexPointB);
-	arrVertix[indexPointC].Z = (this->*Function)(indexPointC);
-	arrVertix[indexPointD].Z = (this->*Function)(indexPointD);
-}
-
-void ALandscapeGenerator::GenerateObjectsOnMap_Hills(int indentForBorders, const TArray<FMapObject> &Objects) {
-	BordersObjectsCreate(indentForBorders, Objects, &ALandscapeGenerator::FunctionBorders);
+void ALandscapeGenerator::GenerateObjectsOnMap_Hills(int indentForBorders, const TArray<FMapObject> &Objects_Borders,
+													 const TArray<FMapObject> &Objects_Map, float densities,
+													 int deltaQualityObjects) {
+	BordersObjectsCreate(indentForBorders, Objects_Borders, &ALandscapeGenerator::FunctionBorders);
+	PlayeblMapObjectsGeneration(Objects_Map, densities, deltaQualityObjects);
 }
 #pragma endregion
 ///////////////////////////////////
 
+#ifdef DEBUG_BP_FUNCTIONS
 #pragma region DEBUG_Functions
 void ALandscapeGenerator::Debug_BordersSpawn(bool bAB_spawn, bool bAC_spawn, bool bBD_spawn, bool bCD_spawn) {
 	if (bAB_spawn)
@@ -466,4 +669,10 @@ void ALandscapeGenerator::Debug_BordersSpawn(bool bAB_spawn, bool bAC_spawn, boo
 	if (bCD_spawn)
 		SpawnObject(arrBorders[3]);
 }
+
+void ALandscapeGenerator::Debug_ObjectsSpawn(bool bSpawn) {
+	if (bSpawn)
+		SpawnObject(SpawnedObjectsOnMap);
+}
 #pragma endregion
+#endif //  DEBUG_BP_FUNCTIONS
