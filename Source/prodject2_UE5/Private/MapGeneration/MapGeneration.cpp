@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "MapGeneration/MapGeneration.h"
-
+#pragma region Override func and class parametrs
 AMapGeneration::AMapGeneration() {
 	PrimaryActorTick.bCanEverTick = false;
 }
@@ -10,50 +10,52 @@ void AMapGeneration::PostEditChangeProperty(FPropertyChangedEvent &PropertyChang
 	ALandscapeGenerator::PostEditChangeProperty(PropertyChangedEvent);
 #pragma region TaskCountBorders
 	// Если изменилось свойство power2
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("power2")) {
-		// Обновляем TaskCountBorders, если оно больше нового значения power2
-		if (TaskCountBorder > power2)
-			TaskCountBorder = power2;
-	}
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("TaskCountBorder")) {
-		// Обновляем TaskCountBorders, если оно больше нового значения power2
-		if (TaskCountBorder > power2)
-			TaskCountBorder = power2;
-	}
+	// if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("power2")) {
+	//	// Обновляем TaskCountBorders, если оно больше нового значения power2
+	//	if (TaskCountBorder > power2)
+	//		TaskCountBorder = power2;
+	//}
+	// if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("TaskCountBorder")) {
+	//	// Обновляем TaskCountBorders, если оно больше нового значения power2
+	//	if (TaskCountBorder > power2)
+	//		TaskCountBorder = power2;
+	//}
 #pragma endregion
 #pragma region DistanceBeatween
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("poligonSize")) {
-		// Обновляем TaskCountBorders, если оно больше нового значения power2
-		if (DistanceBetween > poligonSize)
-			DistanceBetween = poligonSize;
-	}
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("DistanceBetween")) {
-		// Обновляем TaskCountBorders, если оно больше нового значения power2
-		if (DistanceBetween > poligonSize)
-			DistanceBetween = poligonSize;
-	}
+	// if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("poligonSize")) {
+	//	// Обновляем TaskCountBorders, если оно больше нового значения power2
+	//	if (DistanceBetween > poligonSize)
+	//		DistanceBetween = poligonSize;
+	// }
+	// if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == TEXT("DistanceBetween")) {
+	//	// Обновляем TaskCountBorders, если оно больше нового значения power2
+	//	if (DistanceBetween > poligonSize)
+	//		DistanceBetween = poligonSize;
+	// }
 #pragma endregion
 }
+#pragma endregion
 
+#pragma region BP Functions
 TArray<FChanceGroup> AMapGeneration::NormalizeChanses(TArray<FChance> arrChance) {
 	return Normalize::NormalizeChance(arrChance);
 }
 
-FRotator AMapGeneration::FindRotationWithMesh(FVector location) {
-	return FRotator::ZeroRotator;
+void AMapGeneration::GenerateObjectsMap_Hills(FDataMap &DataBorders) {
+	k1_f = RandomStream.RandRange(kf_min, kf_max);
+	k2_f = RandomStream.RandRange(kf_min, kf_max);
+	k1_a = RandomStream.RandRange(ka_min, ka_max);
+	k2_a = RandomStream.RandRange(ka_min, ka_max);
+	BordersObjectsCreate(DataBorders, &AMapGeneration::FunctionBorders_Hills);
+	//  PlayeblMapObjectsGeneration(Objects_Map, densities, deltaQualityObjects);
+}
+#pragma endregion
+
+FVector AMapGeneration::CreateVectorBy2Points(FVector &startPoint, FVector &endPoint) {
+	return FVector(endPoint.X - startPoint.X, endPoint.Y - startPoint.Y, endPoint.Z - startPoint.Z);
 }
 
-int8 AMapGeneration::RandomObjectIndex(const TArray<FMapObject> &Objects) {
-	int8 randomValue = RandomStream.RandRange(0, 100);
-	int8 selectedIndex = -1;
-	for (int j = 0; j < Objects.Num(); j++) {
-		if (randomValue <= Objects[j].Chance.Chance) {
-			selectedIndex = j;
-			break;
-		}
-	}
-	return selectedIndex;
-}
+#pragma region Generation Objects
 
 float AMapGeneration::ZCoordinateFind(FVector point) {
 	// Вычисляем индексы вершин полигона
@@ -83,271 +85,372 @@ float AMapGeneration::ZCoordinateFind(FVector point) {
 	return point_point.Z;
 }
 
-float AMapGeneration::ZCoordinateFind(FVector point, bool bOy_true) {
-	int32 FirstVertiIndex;
-	int32 SecondVertiIndex;
-	float step;
-	if ((int)point.X % poligonSize == 0 && (int)point.Y % poligonSize == 0) {
-		FirstVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * width;
-		return arrVertix[FirstVertiIndex].Z;
+TArray<uint16> AMapGeneration::FindProcentQualityObjects(TArray<FSimpleObject> &Objects,
+														 FCollisionPoint &point,
+														 float &densities) {
+
+	float k = 0; // коээфициент относительной вместимости
+	float sum = 0;
+
+	TArray<uint16> RelativeDensities; // массив количества объектов для каждого типа
+
+	sum += Objects[0].FindSquare() * Objects[0].Chance.Chance;
+	for (int i = 1; i < Objects.Num(); i++) {
+		sum += Objects[0].FindSquare() * (Objects[i].Chance.Chance - Objects[i - 1].Chance.Chance);
 	}
-	if (bOy_true) { // x - const before FUNCTION BORDERS USE
-		FirstVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * width;
-		SecondVertiIndex = (int)(point.Y / poligonSize) + (int)(point.X / poligonSize) * (width + 1);
-		step = point.X - arrVertix[FirstVertiIndex].X;
-	} else { // y - const before FUNCTION BORDERS USE
-		FirstVertiIndex = (int)(point.X / poligonSize) * width + (int)(point.Y / poligonSize);
-		SecondVertiIndex = (int)(point.X / poligonSize) * width + (int)(point.Y / poligonSize) + 1;
-		step = point.Y - arrVertix[FirstVertiIndex].Y;
+	if (bSquare) {
+		if (sum != 0)
+			k = (point.FindSuareSquare() * densities / 100.0f) / sum;
+		else
+			k = 0;
+
+	} else {
+		if (sum != 0)
+			k = (point.FindSuareSquare() * densities / 100.0f) / sum;
+		else
+			k = 0;
 	}
-	FVector direction = (arrVertix[SecondVertiIndex] - arrVertix[FirstVertiIndex]).GetSafeNormal();
-	FVector location = arrVertix[FirstVertiIndex] + direction * step;
-	return location.Z;
+
+	RelativeDensities.Add(Objects[0].Chance.Chance * k);
+	for (int i = 1; i < Objects.Num(); i++) {
+		RelativeDensities.Add((Objects[i].Chance.Chance - Objects[i - 1].Chance.Chance) * k);
+	}
+
+	return RelativeDensities;
 }
 
-void AMapGeneration::SpawnObject(TArray<FMapObject> &arrayObjects) {
+bool AMapGeneration::FindLocationForObject(FSimpleObject &Object, FCollisionPoint &point) {
+	FVector spawnPoint;
+	int counter = 0;
+	while (counter < CountsTry2Spawn) {
+		if (bSquare)
+			spawnPoint = RandomPointInSquare(point);
+		else
+			spawnPoint = RandomPointInCircle(point);
+		Object.Location = spawnPoint;
+		TArray<FVector2D> ChunkIndexes = FindChunksAround(PointInChunkIndex(FVector(spawnPoint.X, spawnPoint.Y, 0.0f)));
+		if (point.bBorder) {
+			if (LocationSimpleObjectsValid(ChunkIndexes, Object)) {
+				return true;
+			} else {
+				counter++;
+			}
+		}
+	}
+	return false;
+}
+
+bool AMapGeneration::LocationSimpleObjectsValid(TArray<FVector2D> &chunksIndexes, FSimpleObject &addedObject) {
+	for (auto &index : chunksIndexes) {
+		for (auto &object : arrChunks[index.X][index.Y].ObjectsInChunk) {
+			FVector tempVector = FVector(object.Location.X, object.Location.Y, 0.0f);
+			float lenghtBeatwean = CreateVectorBy2Points(tempVector, addedObject.Location).Size();
+			float maxR = (addedObject.RadiusCollision > object.RadiusCollision) ? (addedObject.RadiusCollision)
+																				: (object.RadiusCollision);
+			if (lenghtBeatwean < maxR)
+				return false;
+		}
+	}
+	return true;
+}
+
+FRotator AMapGeneration::FindRotationWithMesh(FVector location) {
+	return FRotator::ZeroRotator;
+}
+
+void AMapGeneration::SpawnObject(TArray<FSimpleObject> &arrayObjects) {
 	for (int i = 0; i < arrayObjects.Num(); i++) {
-		GetWorld()->SpawnActor<AActor>(arrayObjects[i].Actor,
+		GetWorld()->SpawnActor<AActor>(arrayObjects[i].Object,
 									   arrayObjects[i].Location,
 									   arrayObjects[i].Rotation,
 									   arrayObjects[i].SpawnParams);
 	}
 }
 
-#pragma region Borders
-float AMapGeneration::FunctionBorders_Hills(float x) {
-	return k1_f * FMath::Sin(x / k1_a) + k2_f * FMath::Cos(x / k2_a) + k1_f + k2_f;
+int8 AMapGeneration::RandomObjectIndex(const TArray<FSimpleObject> &Objects) {
+	int8 randomValue = RandomStream.RandRange(0, 100);
+	int8 selectedIndex = -1;
+	for (int j = 0; j < Objects.Num(); j++) {
+		if (randomValue <= Objects[j].Chance.Chance) {
+			selectedIndex = j;
+			break;
+		}
+	}
+	return selectedIndex;
 }
 
-// Доработать, не учитывается radius colision в обе стороны
-void AMapGeneration::FindBordersObjectCoordinate(const FVector &Start,
-												 const FVector &End,
-												 const TArray<FMapObject> &Objects,
-												 TArray<FMapObject> &returnObjects) {
-	float Spacing = DistanceBetween;
-	FVector direction = (End - Start).GetSafeNormal();
-	for (float i = 0; i < poligonSize * TaskCountBorder; i += Spacing) {
-		// Используем локальный генератор
-		int8 selectedIndex = -1; // Инициализируем индекс
-		selectedIndex = RandomObjectIndex(Objects);
+FVector AMapGeneration::RandomPointInSquare(FCollisionPoint &point) {
+	int counter = 0;
+	float HalfSize = point.radiusColision / 1.42f;
+	float X = point.Location.X + RandomStream.FRandRange(-HalfSize, HalfSize);
+	float Y = point.Location.Y + RandomStream.FRandRange(-HalfSize, HalfSize);
 
-		Spacing = Objects[selectedIndex].RadiusColision;
-		FVector location = Start + direction * i;
+	return FVector(X, Y, 0.0f);
+}
 
-		FRotator rotation = FRotator::ZeroRotator;
-		if (Objects[selectedIndex].RotationWithMesh) {
-			rotation = FindRotationWithMesh(location);
-		}
-		FMapObject temp = Objects[selectedIndex];
-		temp.SetLocation(location);
-		temp.SetRotation(rotation);
+FVector AMapGeneration::RandomPointInCircle(FCollisionPoint &point) {
+	float Theta = RandomStream.FRand() * 2.0f * PI;
 
-		int chanksInRow = arrChunks.Num();
-		if ((arrChunks[0][0].inChunk(&Start) && arrChunks[0][chanksInRow - 1].inChunk(&End)) ||
-			(arrChunks[0][0].inChunk(&End) && arrChunks[0][chanksInRow - 1].inChunk(&Start))) { // AB
-			for (Chunk &chunk : arrChunks[0]) {
-				if (chunk.inChunk(&location)) {
-					chunk.AddObject(temp);
-					break;
-				}
-			}
-		}
-		else if ((arrChunks[0][0].inChunk(&Start) && arrChunks[chanksInRow - 1][0].inChunk(&End)) ||
-				   (arrChunks[0][0].inChunk(&End) && arrChunks[chanksInRow - 1][0].inChunk(&Start))) { // AC
-			for (int j = 0; j <= chanksInRow * chanksInRow - chanksInRow; j += chanksInRow) {
-				if (arrChunks[j][0].inChunk(&location)) {
-					arrChunks[j][0].AddObject(temp);
-					break;
-				}
-			}
-		} 
-		else if ((arrChunks[chanksInRow - 1][0].inChunk(&Start) &&
-					arrChunks[chanksInRow - 1][chanksInRow - 1].inChunk(&End)) ||
-				   (arrChunks[chanksInRow - 1][0].inChunk(&End) &&
-					arrChunks[chanksInRow - 1][chanksInRow - 1].inChunk(&Start))) { // CD
-			for (Chunk &chunk : arrChunks[chanksInRow - 1]) {
-				if (chunk.inChunk(&location)) {
-					chunk.AddObject(temp);
-					break;
-				}
-			}
-		} 
-		else if ((arrChunks[chanksInRow - 1][0].inChunk(&Start) &&
-					   arrChunks[chanksInRow - 1][chanksInRow - 1].inChunk(&End)) ||
-				   (arrChunks[chanksInRow - 1][0].inChunk(&End) &&
-					arrChunks[chanksInRow - 1][chanksInRow - 1].inChunk(&Start))) { // BD
-			for (int j = 0; j <= chanksInRow * chanksInRow - chanksInRow; j += chanksInRow) {
-				if (arrChunks[j][chanksInRow - 1].inChunk(&location)) {
-					arrChunks[j][chanksInRow - 1].AddObject(temp);
-					break;
-				}
-			}
-		} 
-		else {
-			for (int row = 0; row < chanksInRow; row++) {
-				for (int col = 0; col < chanksInRow; col++) {
-					if (arrChunks[row][col].inChunk(&location)) {
-						arrChunks[row][col].AddObject(temp);
-						break;
+	// Генерируем случайное расстояние (используем sqrt для равномерного распределения)
+	float Distance = FMath::Sqrt(RandomStream.FRand()) * point.radiusColision;
+
+	// Вычисляем координаты точки
+	float X = point.Location.X + Distance * FMath::Cos(Theta);
+	float Y = point.Location.Y + Distance * FMath::Sin(Theta);
+
+	return FVector(X, Y, 0.0f);
+}
+
+void AMapGeneration::GenerateSimpleObjects(TArray<FCollisionPoint> &collisionPoints, FDataMap Data) {
+	TArray<uint16> qulityOfObjects = FindProcentQualityObjects(Data.simpleObjects, collisionPoints[0], Data.Density);
+	for (int i = 0; i < collisionPoints.Num(); i++) {
+		for (int j = 0; j < Data.simpleObjects.Num(); j++) {
+			FSimpleObject addedObject = Data.simpleObjects[j];
+			for (int k = 0; k < qulityOfObjects[j]; k++) {
+				if (FindLocationForObject(addedObject, collisionPoints[i])) {
+					FRotator rotation = FRotator::ZeroRotator;
+					if (addedObject.RotatesWithMesh) {
+						rotation = FindRotationWithMesh(addedObject.Location);
 					}
-
-				}	
+					FVector2D indexChunk = PointInChunkIndex(addedObject.Location);
+					arrChunks[indexChunk.X][indexChunk.Y].AddObject(addedObject);
+				} else {
+					break;
+				}
 			}
 		}
-
-		returnObjects.Add(temp);
 	}
 }
+#pragma region Hard objects
 
-void AMapGeneration::BordersObjectsCreate(const TArray<FMapObject> &Objects,
-										  float (AMapGeneration::*Function)(float x)) {
-	int Spacing = TaskCountBorder;
+#pragma region Triangls Find
 
-	k1_f = FMath::RandRange(kf_min, kf_max);
-	k2_f = FMath::RandRange(kf_min, kf_max);
-	k1_a = FMath::RandRange(ka_min, ka_max);
-	k2_a = FMath::RandRange(ka_min, ka_max);
+TArray<TSet<TArray<int32>>> AMapGeneration::FindTrianglesAroundVertex(TArray<int32> startPoints, int MaxDepth) {
+	TArray<TSet<TArray<int32>>> returnTriangles;
 
-	TArray<TArray<FVector>> arrayNodes = NodesYPoints(Function);
+	TSet<int32> points(startPoints);
+	int depth = 0;
+	while (depth < MaxDepth || depth >= width) {
+		TSet<TArray<int32>> depthTriangles;
+		returnTriangles.Add(depthTriangles);
+		for (int32 &point : points) {
+			// right up square
+			TArray<int32> triangle1;
+			TArray<int32> triangle2;
+			if (point + width + 1 < width * width - 1) {
+				triangle1.Add(point);
+				triangle1.Add(point + width + 1);
+				triangle1.Add(point + width);
+
+				triangle2.Add(point);
+				triangle2.Add(point + width);
+				triangle2.Add(point + width + 1);
+
+				depthTriangles.Add(triangle1);
+				depthTriangles.Add(triangle2);
+			}
+			// down right triangle
+			TArray<int32> triangle3;
+			if (point + 1 < width * width - 1 && point - width > 0) {
+				triangle3.Add(point - width);
+				triangle3.Add(point + 1);
+				triangle3.Add(point);
+
+				depthTriangles.Add(triangle3);
+			}
+			// left down square
+			TArray<int32> triangle4;
+			TArray<int32> triangle5;
+			if (point - width - 1 > 0) {
+				triangle4.Add(point - width - 1);
+				triangle4.Add(point - 1);
+				triangle4.Add(point);
+
+				triangle5.Add(point - width - 1);
+				triangle5.Add(point);
+				triangle5.Add(point - 1);
+
+				depthTriangles.Add(triangle4);
+				depthTriangles.Add(triangle5);
+			}
+			// up left triangle
+			TArray<int32> triangle6;
+			if (point - 1 > 0 && point + width < width * width - 1) {
+				triangle5.Add(point - 1);
+				triangle5.Add(point);
+				triangle5.Add(point + width);
+
+				depthTriangles.Add(triangle6);
+			}
+		}
+	}
+	RemoveDuplicates(returnTriangles);
+	return returnTriangles;
+}
+
+void AMapGeneration::RemoveDuplicates(TArray<TSet<TArray<int32>>> &depthTriangles) {
+	// Структура для отслеживания уже использованных данных
+	TSet<TArray<int32>> UsedData;
+
+	// Перебираем все TSet в порядке их индексов
+	for (TSet<TArray<int32>> &currentSet : depthTriangles) {
+		TArray<TArray<int32>> itemsToRemove;
+
+		// Проверяем каждый элемент текущего TSet
+		for (const TArray<int32> &item : currentSet) {
+			if (UsedData.Contains(item)) {
+				// Если элемент уже используется, помечаем его для удаления
+				itemsToRemove.Add(item);
+			} else {
+				// Иначе добавляем его в UsedData
+				UsedData.Add(item);
+			}
+		}
+
+		// Удаляем помеченные элементы из текущего TSet
+		for (const TArray<int32> &item : itemsToRemove) {
+			currentSet.Remove(item);
+		}
+	}
+}
+#pragma endregion
+#pragma endregion
+
+#pragma region Borders
+
+#pragma region Special borders functions
+
+float AMapGeneration::FunctionBorders_Hills(float x) {
+	return FMath::Abs(k1_f * FMath::Sin(x / k1_a) + k2_f * FMath::Cos(x / k2_a) + k1_f + k2_f) + BorderStepLenght;
+}
+#pragma endregion
+
+TArray<TArray<FCollisionPoint>> AMapGeneration::BordersRegionCreater(float (AMapGeneration::*Function)(float x)) {
+	TArray<FCollisionPoint> AB_CollisionPointsBorder;
+	TArray<FCollisionPoint> AC_CollisionPointsBorder;
+	TArray<FCollisionPoint> BD_CollisionPointsBorder;
+	TArray<FCollisionPoint> CD_CollisionPointsBorder;
+
+	minX_inside = 0;
+	minY_inside = 0;
+	maxX_inside = poligonSize * width;
+	maxY_inside = poligonSize * width;
+
+	FCollisionPoint tempCollisionPoint;
+	tempCollisionPoint.radiusColision = BorderStepLenght * 0.75f;
+	tempCollisionPoint.bBorder = true;
+	for (int i = BorderStepLenght; i < width * poligonSize - BorderStepLenght; i += BorderStepLenght) {
+		// AB
+		tempCollisionPoint.Location = FVector((this->*Function)(i), i, 0.0f);
+		CollisionPoints.Add(tempCollisionPoint);
+
+		if (minY_inside < tempCollisionPoint.Location.Y)
+			minY_inside = tempCollisionPoint.Location.Y;
+
+		// CD
+		tempCollisionPoint.Location = FVector(arrVertix[indexPointD - 1].X - (this->*Function)(i), i, 0.0f);
+		CollisionPoints.Add(tempCollisionPoint);
+
+		if (maxY_inside > tempCollisionPoint.Location.Y)
+			maxY_inside = tempCollisionPoint.Location.Y;
+
+		// AC
+		tempCollisionPoint.Location = FVector(i, (this->*Function)(i), 0.0f);
+		CollisionPoints.Add(tempCollisionPoint);
+
+		if (minX_inside < tempCollisionPoint.Location.X)
+			minX_inside = tempCollisionPoint.Location.X;
+		// BD
+		tempCollisionPoint.Location = FVector(i, arrVertix[indexPointB].Y - (this->*Function)(i), 0.0f);
+		CollisionPoints.Add(tempCollisionPoint);
+
+		if (maxX_inside > tempCollisionPoint.Location.X)
+			maxX_inside = tempCollisionPoint.Location.X;
+	}
+
+	auto GenerateExtraCollisionPoints =
+		[&](FVector &nodesPoint1, FVector &nodesPoint2, TArray<FCollisionPoint> &result) {
+			FVector vector = CreateVectorBy2Points(nodesPoint1, nodesPoint2);
+			if (vector.Size() > BorderStepLenght * 1.25) {
+				FVector direction = vector.GetSafeNormal();
+				FVector step = direction * BorderStepLenght;
+				FVector currentPoint = nodesPoint1;
+
+				while (vector.Size() > BorderStepLenght * 1.25) {
+					FVector tempPoint = currentPoint + step;
+					FCollisionPoint tempCollisionPoint;
+					tempCollisionPoint.Location = tempPoint;
+					CollisionPoints.Add(tempCollisionPoint);
+
+					currentPoint = tempPoint;
+					vector -= step;
+				}
+			}
+		};
+	int rangeArray = AB_CollisionPointsBorder.Num();
+	for (int i = 0; i < rangeArray - 1; i++) {
+		GenerateExtraCollisionPoints(AB_CollisionPointsBorder[i].Location,
+									 AB_CollisionPointsBorder[i + 1].Location,
+									 AB_CollisionPointsBorder);
+		GenerateExtraCollisionPoints(AC_CollisionPointsBorder[i].Location,
+									 AC_CollisionPointsBorder[i + 1].Location,
+									 AC_CollisionPointsBorder);
+		GenerateExtraCollisionPoints(CD_CollisionPointsBorder[i].Location,
+									 CD_CollisionPointsBorder[i + 1].Location,
+									 CD_CollisionPointsBorder);
+		GenerateExtraCollisionPoints(BD_CollisionPointsBorder[i].Location,
+									 BD_CollisionPointsBorder[i + 1].Location,
+									 BD_CollisionPointsBorder);
+	}
+	GenerateExtraCollisionPoints(AB_CollisionPointsBorder[rangeArray - 1].Location,
+								 BD_CollisionPointsBorder[0].Location,
+								 AB_CollisionPointsBorder);
+	GenerateExtraCollisionPoints(BD_CollisionPointsBorder[rangeArray - 1].Location,
+								 CD_CollisionPointsBorder[rangeArray - 1].Location,
+								 BD_CollisionPointsBorder);
+	GenerateExtraCollisionPoints(AC_CollisionPointsBorder[rangeArray - 1].Location,
+								 CD_CollisionPointsBorder[0].Location,
+								 CD_CollisionPointsBorder);
+	GenerateExtraCollisionPoints(AB_CollisionPointsBorder[0].Location,
+								 AC_CollisionPointsBorder[0].Location,
+								 AC_CollisionPointsBorder);
+
+	TArray<TArray<FCollisionPoint>> returnArray;
+	returnArray.Add(AB_CollisionPointsBorder);
+	returnArray.Add(AC_CollisionPointsBorder);
+	returnArray.Add(BD_CollisionPointsBorder);
+	returnArray.Add(CD_CollisionPointsBorder);
+
+	return returnArray;
+}
+
+void AMapGeneration::BordersObjectsCreate(FDataMap &Data, float (AMapGeneration::*Function)(float x)) {
+	TArray<TArray<FCollisionPoint>> BorderCollisionPoints = BordersRegionCreater(Function);
 
 	TArray<TFuture<void>> Futures;
-	TArray<FMapObject> AB_objects;
-	TArray<FMapObject> AC_objects;
-	TArray<FMapObject> BD_objects;
-	TArray<FMapObject> CD_objects;
 
-	for (int i = 0; i < width - Spacing; i += Spacing) {
-		Futures.Add(
-			Async(EAsyncExecution::Thread,
-				  [this, i, Spacing, &arrayNodes, &Objects, &AB_objects, &AC_objects, &BD_objects, &CD_objects]() {
-					  // AB
-					  FindBordersObjectCoordinate(arrayNodes[0][i], arrayNodes[0][i + Spacing], Objects, AB_objects);
-
-					  // AC
-					  FindBordersObjectCoordinate(arrayNodes[1][i], arrayNodes[1][i + Spacing], Objects, AC_objects);
-
-					  // BD
-					  FindBordersObjectCoordinate(arrayNodes[2][i], arrayNodes[2][i + Spacing], Objects, BD_objects);
-
-					  // CD
-					  FindBordersObjectCoordinate(arrayNodes[3][i], arrayNodes[3][i + Spacing], Objects, CD_objects);
-				  }));
+	for (int i = 0; i < 4; i++) {
+		Futures.Add(Async(EAsyncExecution::Thread, [this, i, &Data, &BorderCollisionPoints]() {
+			GenerateSimpleObjects(BorderCollisionPoints[i], Data);
+		}));
 	}
 
 	// Дожидаемся задач
 	for (auto &Future : Futures) {
 		Future.Wait();
 	}
-
-	AnalyzeBorderPoints(arrayNodes, maxY_inside, minY_inside, maxX_inside, minX_inside);
-	arrayNodes.Empty();
-
-	arrBorders.Add(AB_objects);
-	AB_objects.Empty();
-
-	arrBorders.Add(AC_objects);
-	AC_objects.Empty();
-
-	arrBorders.Add(BD_objects);
-	BD_objects.Empty();
-
-	arrBorders.Add(CD_objects);
-	CD_objects.Empty();
-}
-
-TArray<TArray<FVector>> AMapGeneration::NodesYPoints(float (AMapGeneration::*Function)(float x)) {
-	TArray<FVector> AB_NodesPointsBorder;
-	TArray<FVector> AC_NodesPointsBorder;
-	TArray<FVector> BD_NodesPointsBorder;
-	TArray<FVector> CD_NodesPointsBorder;
-	for (int32 i = 0; i < width; i++) {
-		// AB
-		FVector tempVector = FVector((this->*Function)(arrVertix[i].Y), arrVertix[i].Y, 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 1); // 1
-		AB_NodesPointsBorder.Add(tempVector);
-
-		// CD
-		tempVector = FVector(arrVertix[indexPointD - 1].X - (this->*Function)(arrVertix[width * (width - 1) + i].Y),
-							 arrVertix[width * (width - 1) + i].Y,
-							 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 1); // 1
-		CD_NodesPointsBorder.Add(tempVector);
-
-		// AC
-		tempVector = FVector(arrVertix[i * width].X, (this->*Function)(arrVertix[i * width].X), 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 0); // 0
-		AC_NodesPointsBorder.Add(tempVector);
-		// BD
-		tempVector = FVector(arrVertix[(width - 1) + i * width].X,
-							 arrVertix[indexPointB - 1].Y - (this->*Function)(arrVertix[(width - 1) + i * width].X),
-							 0.0f);
-		tempVector.Z = ZCoordinateFind(tempVector, 0); // 0
-		BD_NodesPointsBorder.Add(tempVector);
-	}
-	TArray<TArray<FVector>> result;
-	result.Add(AB_NodesPointsBorder);
-	result.Add(AC_NodesPointsBorder);
-	result.Add(BD_NodesPointsBorder);
-	result.Add(CD_NodesPointsBorder);
-
-	return result;
-}
-
-void AMapGeneration::AnalyzeBorderPoints(const TArray<TArray<FVector>> &BorderPoints,
-										 float &MaxY,
-										 float &MinY,
-										 float &MaxX,
-										 float &MinX) {
-	MinY = poligonSize * (width - 1) / 2.;
-	MaxY = poligonSize * (width - 1) / 2.;
-	MinY = poligonSize * (width - 1) / 2.;
-	MinY = poligonSize * (width - 1) / 2.;
-
-	// Проверяем границу AB
-	for (const FVector &Point : BorderPoints[0]) {
-		if (Point.X < MinX) {
-			MinX = Point.X;
-		}
-	}
-
-	// Проверяем границу AC
-	for (const FVector &Point : BorderPoints[1]) {
-		if (Point.Y < MinY) {
-			MinY = Point.Y;
-		}
-	}
-	// Проверяем границу BD
-	for (const FVector &Point : BorderPoints[2]) {
-		if (Point.Y > MaxY) {
-			MaxY = Point.Y;
-		}
-	}
-	// Проверяем границу CD
-	for (const FVector &Point : BorderPoints[3]) {
-		if (Point.X > MaxX) {
-			MaxX = Point.X;
-		}
-	}
+	BorderCollisionPoints.Empty();
 }
 #pragma endregion
 
-void AMapGeneration::GenerateObjectsMap_Hills(const TArray<FMapObject> &Objects_Borders,
-											  const TArray<FMapObject> &Objects_Map,
-											  float densities,
-											  int deltaQualityObjects) {
-	BordersObjectsCreate(Objects_Borders, &AMapGeneration::FunctionBorders_Hills);
-	// PlayeblMapObjectsGeneration(Objects_Map, densities, deltaQualityObjects);
-}
+#pragma endregion
 
 #pragma region Debug Funclions
-void AMapGeneration::Debug_BordersSpawn(bool bAB_spawn, bool bAC_spawn, bool bBD_spawn, bool bCD_spawn) {
-	if (bAB_spawn)
-		SpawnObject(arrBorders[0]);
-	if (bAC_spawn)
-		SpawnObject(arrBorders[1]);
-	if (bBD_spawn)
-		SpawnObject(arrBorders[2]);
-	if (bCD_spawn)
-		SpawnObject(arrBorders[3]);
+void AMapGeneration::Debug_BordersSpawn() {
+	for (auto &chunkLine : arrChunks) {
+		for (auto &chunk : chunkLine) {
+			SpawnObject(chunk.ObjectsInChunk);
+		}
+	}
 }
 #pragma endregion

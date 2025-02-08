@@ -12,60 +12,51 @@ UCLASS()
 class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 
 	GENERATED_BODY()
-
+	
   public:
-	// Sets default values for this actor's properties
 	ALandscapeGenerator();
-
-#pragma region Blueprint vision
-#pragma region values
-	UPROPERTY(
-		EditAnywhere, Category = "Generator|Landscape|Poligons parametrs",
-		meta = (ClampMin = "1", ClampMax = "16",
-				ToolTip = "Power of two determining the width of the game field by the formula: width = 2^power2."))
-	int8 power2; // power of 2 for width
-
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Poligons parametrs",
-			  meta = (ClampMin = "1", ClampMax = "100000", ToolTip = "Size of one polygon in coordinate grid units."))
-	int32 poligonSize;
-
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Poligons parametrs",
-			  meta = (ClampMin = "1", ToolTip = "Texture scaling factor."))
-	double scaleUV; // Используем float вместо double
-
-	UPROPERTY(
-		EditAnywhere, Category = "Generator|Landscape|Chancks parametrs",
-		meta = (ClampMin = "0", ClampMax = "16",
-				ToolTip =
-					"Power of four determining how many chunks the field will be divided into. (Can't exceed power2)"))
-	uint8 power4; // power of 4 fo width
-	////values for different landscape/////
-	////Hills
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c1_min;
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c1_max;
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c2_min;
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c2_max;
-
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 H_min;
-	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 H_max;
-
-#pragma endregion
-#pragma region events and fubctions
-	/////////////////events and functions////////////////////////////////
-
-	UFUNCTION(BlueprintCallable, Category = "Generator|Landscape|Hills")
-	void GenerateHills(UProceduralMeshComponent *MeshComponent); // create flat surface
-
-#pragma endregion
-#pragma endregion
-
 	virtual void PostEditChangeProperty(FPropertyChangedEvent &PropertyChangedEvent) override;
 
   protected:
 	virtual void BeginPlay() override;
 
+	// Blueprint calleble functions for generate
+  public:
+	UFUNCTION(BlueprintCallable, Category = "Generator|Landscape|Hills")
+	void GenerateHills(UProceduralMeshComponent *MeshComponent);
+
+  protected:
+	// Sid - generation generate sid for all procedural generation map
+	// возможно надо сделать несколько разных, под объекты, ландшафт, границы...
 	FRandomStream RandomStream;
 
+#pragma region Generate Landscape
+	// value - landscape settings 
+  public:
+	UPROPERTY(
+		EditAnywhere,
+		Category = "Generator|Landscape|Poligons parametrs",
+		meta = (ClampMin = "1",
+				ClampMax = "16",
+				ToolTip = "Power of two determining the width of the game field by the formula: width = 2^power2."))
+	int8 power2; // power of 2 for width
+	// количество найденных вершин не линейным методом
+	UPROPERTY(EditAnywhere,
+			  Category = "Generator|Landscape|Poligons parametrs",
+			  meta = (ClampMin = "1", ClampMax = "16", ToolTip = "Depth of the landscape function smoothing"))
+	int8 depthSmoothing;
+
+	UPROPERTY(EditAnywhere,
+			  Category = "Generator|Landscape|Poligons parametrs",
+			  meta = (ClampMin = "1", ClampMax = "100000", ToolTip = "Size of one polygon in coordinate grid units."))
+	int32 poligonSize;
+
+	UPROPERTY(EditAnywhere,
+			  Category = "Generator|Landscape|Poligons parametrs",
+			  meta = (ClampMin = "1", ToolTip = "Texture scaling factor."))
+	float scaleUV; // Используем float вместо double
+
+  protected:
 	int32 width;
 
 	int32 indexPointA;
@@ -78,9 +69,21 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	TArray<int32> arrTriangles;
 	TArray<TArray<Chunk>> arrChunks;
 
+#pragma region Specific parametrs Landscape
+	//public parametrs for landscape
+  public:
+	// Hills
+	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c1_min;
+	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c1_max;
+	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c2_min;
+	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 c2_max;
+
+	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 H_min;
+	UPROPERTY(EditAnywhere, Category = "Generator|Landscape|Hills") int16 H_max;
+
+	// values for difrent landscape Functions
   private:
-	/////////////////////values for landscape/////////////////////////////////////////////
-	// variables for leveling height in function GenerationHillsHeights()
+	// Hills
 	int16 C1;
 	int16 C2;
 	int16 C3;
@@ -88,11 +91,20 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 	int16 H1;
 	int16 H2;
 
-#pragma region functions
-#pragma region Landscape Generator
+	// function for difrent landscapes
+  private:
+	float FunctionHillsHeights(float point);
+	float FunctionFlatHeights(float point);
+#pragma endregion
+
+	// functions for generate landscape
+  private:
 	void CreateRandomLandscape(UProceduralMeshComponent *MeshComponent,
 							   float (ALandscapeGenerator::*Function)(float x));
-	TArray<int32> GenerationHeights(int32 A, int32 B, int32 C, int32 D,
+	TArray<int32> GenerationHeights(int32 A,
+									int32 B,
+									int32 C,
+									int32 D,
 									float (ALandscapeGenerator::*Function)(float x));
 
 	void GenerationHeightsInPeacks(
@@ -104,8 +116,10 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 														  // retutn arr: a - 0, b - 1, c - 2 d - 3, mid - 4
 														  // left - 5, top - 6, right - 7, bot - 8
 
+	TArray<int32> LinearInterpolation(int32 A, int32 B, int32 C, int32 D);
 #pragma region Dimond -Squre
 	// Functions for algorithm dimond - square
+  private:
 	void DiamondSquare(float (ALandscapeGenerator::*Function)(float x));
 
 	int32 MidlPointSquareIndex(int32 A, int32 C); // functionn for find midl vertix index in array of vertix
@@ -117,15 +131,26 @@ class PRODJECT2_UE5_API ALandscapeGenerator : public AActor {
 												// of 2 and return vertix always is node
 
 #pragma endregion
-	////////////////////////////////////////////////////////
-#pragma endregion
-#pragma region Chanks Gene
-	void ChunksGenerator();
-#pragma endregion
 #pragma endregion
 
-#pragma region SpecificFunctions
-	float FunctionHillsHeights(float point);
-	float FunctionFlatHeights(float point);
+#pragma region Chanks
+  public:
+	UPROPERTY(
+		EditAnywhere,
+		Category = "Generator|Landscape|Chancks parametrs",
+		meta = (ClampMin = "0",
+				ClampMax = "16",
+				ToolTip =
+					"Power of four determining how many chunks the field will be divided into. (Can't exceed power2)"))
+	uint8 power4; // power of 4 fo width
+ 
+
+  protected:
+	int32 ChunkSize;
+	FVector2D PointInChunkIndex(FVector point);
+	TArray<FVector2D> FindChunksAround(FVector2D centralCunck);
+
+	 private:
+	void ChunksGenerator();
 #pragma endregion
 };

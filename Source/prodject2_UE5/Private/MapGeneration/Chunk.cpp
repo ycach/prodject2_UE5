@@ -7,7 +7,11 @@ TArray<FVector2D> Chunk::GetPoints() {
 	returnArr.Add(point4);
 	return returnArr;
 }
-
+Chunk::Chunk(const Chunk &other)
+	: point1(other.point1), point2(other.point2), point3(other.point3), point4(other.point4),
+	  ObjectsInChunk(other.ObjectsInChunk), CriticalSection() // Инициализируем новый мьютекс, а не копируем старый
+{
+}
 bool Chunk::inChunk(const FVector2D *point) {
 	if (point->X >= point1.X && point->X <= point3.X && point->Y >= point1.Y && point->Y <= point2.Y)
 		return true;
@@ -19,6 +23,7 @@ bool Chunk::inChunk(const FVector *point) {
 	return false;
 }
 
-void Chunk::AddObject(const FMapObject object) {
+void Chunk::AddObject(FSimpleObject object) {
+	FScopeLock Lock(&CriticalSection);
 	ObjectsInChunk.Add(object);
 }
