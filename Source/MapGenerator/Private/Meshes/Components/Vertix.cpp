@@ -2,57 +2,82 @@
 
 #include "Meshes/Components/Vertix.h"
 
-Vertix::Vertix(const FVector3d position) {
+Vertix::Vertix(const uint64 index, const FVector position) {
+	this->index = index;
+	CheckIndex();
 	SetPosition(position);
 }
 
-Vertix::Vertix(const float x, const float y, const float z) {
-	SetPosition(x,y,z);
+Vertix::Vertix(const uint64 index, const float x, const float y, const float z) {
+	this->index = index;
+	CheckIndex();
+	SetPosition(x, y, z);
 }
 
 Vertix::~Vertix() {
 }
 
 void Vertix::SetX(const float x) {
-	X = x;
+	position.X = x;
 }
 
 void Vertix::SetY(const float y) {
-	Y = y;
+	position.Y = y;
 }
 
 void Vertix::SetZ(const float z) {
-	Z = z;
+	position.Z = z;
 }
 
-void Vertix::SetPosition(const FVector3d position) {
-	X = position.X;
-	Y = position.Y;
-	Z = position.Z;
+void Vertix::SetPosition(const FVector& pos) {
+	this->position = position;
 }
 
 void Vertix::SetPosition(const float x, const float y, const float z) {
-	X = x;
-	Y = y;
-	Z = z;
+	this->position = FVector(x, y, z);
+}
+
+int32 Vertix::GetIndex() const {
+	return index;
 }
 
 float Vertix::GetX() const {
-	return X;
+	return position.X;
 }
 
 float Vertix::GetY() const {
-	return Y;
+	return position.Y;
 }
 
 float Vertix::GetZ() const {
-	return Z;
+	return position.Z;
 }
 
 FVector3d Vertix::GetPosition() const {
-	return FVector3d(X, Y, Z);
+	return position;
 }
 
 FVector2d Vertix::GetFlatPosition() const {
-	return FVector2d(X, Y);
+	return FVector2d(position.X, position.Y);
+}
+
+void Vertix::operator+=(const FVector &point) {
+	position += point;
+}
+
+void Vertix::operator-=(const FVector &point) {
+	position -= point;
+}
+
+void Vertix::operator+=(const FVector2D &point) {
+	position += FVector(point.X, point.Y, 0.0f);
+}
+
+void Vertix::operator-=(const FVector2D &point) {
+	position -= FVector(point.X, point.Y, 0.0f);
+}
+
+void Vertix::CheckIndex() {
+	if (index < 0)
+		UE_LOG(LogTemp, Fatal, TEXT("Index < 0!!!"));
 }

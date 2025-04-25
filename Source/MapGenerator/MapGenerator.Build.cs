@@ -4,7 +4,7 @@ public class MapGenerator : ModuleRules {
     public MapGenerator(ReadOnlyTargetRules Target) : base(Target) {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "ProceduralMeshComponent" });
 
         PrivateDependencyModuleNames.AddRange(new string[] { });
     }

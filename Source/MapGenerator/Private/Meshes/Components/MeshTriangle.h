@@ -21,11 +21,12 @@ public:
 	TSharedPtr<Vertix> vertix3;
 
   public:
-	float GetZCoordinate(const FVector2d point) const;
-	FVector3d GetNormal() const;
+	float GetZCoordinate(const FVector2D& point) const;
+	FVector GetNormal() const;
 	FVector GetSafeNormal() const;
+	TArray<int32> GetIndex();
 
   private:
-	bool PointInTriangle(const FVector2d point) const;
+	bool PointInTriangle(const FVector2D& point) const;
 	void CheckNullPtrVertix() const;
 };
