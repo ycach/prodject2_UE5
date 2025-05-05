@@ -31,7 +31,7 @@ FVector MeshTriangle::GetSafeNormal() const {
 	return GetNormal().GetSafeNormal();
 }
 
-TArray<int32> MeshTriangle::GetIndex() {
+TArray<int32> MeshTriangle::GetIndex() const{
 	return TArray<int32>({vertix1->GetIndex(), vertix2->GetIndex(), vertix3->GetIndex()});
 }
 

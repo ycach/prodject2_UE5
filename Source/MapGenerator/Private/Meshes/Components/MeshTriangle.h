@@ -24,7 +24,7 @@ public:
 	float GetZCoordinate(const FVector2D& point) const;
 	FVector GetNormal() const;
 	FVector GetSafeNormal() const;
-	TArray<int32> GetIndex();
+	TArray<int32> GetIndex() const;
 
   private:
 	bool PointInTriangle(const FVector2D& point) const;

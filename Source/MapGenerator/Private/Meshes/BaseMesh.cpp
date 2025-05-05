@@ -14,11 +14,20 @@ BaseMesh::BaseMesh(uint32 width, uint32 length, uint16 poligon_size, FVector sta
 
 	scale_uv = 100.0f;
 
+	vertixes.SetNum(length + 1);
+	triangles.SetNum(length);
+
 	global_bounds.SetNum(4);
 	FindGlobalBounds();
 }
 
-BaseMesh::~BaseMesh() {
+void BaseMesh::GenerationSimpleGrid(){
+	auto thread_triangles = Async(EAsyncExecution::Thread, [&]() { GenerateSimpleVertixes(); });
+	auto thread_vertixes = Async(EAsyncExecution::Thread, [&]() { GenerateSimpleTriangles(); });
+
+	thread_triangles.Wait();
+	thread_vertixes.Wait();
+
 }
 
 float BaseMesh::GetLength() const {
@@ -41,12 +50,22 @@ uint16 BaseMesh::GetPoligonSize() const {
 	return poligon_size;
 }
 
-TArray<TArray<TSharedPtr<Vertix>>> &BaseMesh::GetVetrixes() {
+TArray<TArray<TSharedPtr<Vertix>>> &BaseMesh::GetVertixes() {
 	return vertixes;
+}
+TArray<FVector> &BaseMesh::GetSimpleVertixes() {
+	return simples_vertixes;
 }
 
 TArray<TArray<TSharedPtr<MeshTriangle>>> &BaseMesh::GetTriangles() {
 	return triangles;
+}
+TArray<int32> &BaseMesh::GetSimpleTriangles() {
+	return simples_triangles;
+}
+
+TArray<FVector2d> &BaseMesh::GetUV() {
+	return uv;
 }
 
 TArray<FVector> BaseMesh::GetGlobalBounds() const {
@@ -70,26 +89,20 @@ void BaseMesh::SetUVScale(const float scale) {
 bool BaseMesh::PointInMesh() const {
 	return false;
 }
-
-TArray<FVector> BaseMesh::GetSimpleVertixes(){
-	TArray<FVector> simples_vertixes;
+void BaseMesh::GenerateSimpleTriangles() {
 	for (TArray<TSharedPtr<Vertix>> &vertix_line : vertixes) {
 		for (TSharedPtr<Vertix> vertix : vertix_line) {
 			simples_vertixes.Add(vertix->GetPosition());
-			
 		}
 	}
-	return simples_vertixes;
 }
 
-TArray<int32> BaseMesh::GetSimpleTriangles(){
-	TArray<int32> simples_triangles;  
+void BaseMesh::GenerateSimpleTriangles() {
 	for (TArray<TSharedPtr<MeshTriangle>> &triangle_line : triangles) {
 		for (TSharedPtr<MeshTriangle> triangle : triangle_line) {
 			simples_triangles.Append(triangle->GetIndex());
 		}
 	}
-	return simples_triangles;
 }
 
 void BaseMesh::FindGlobalBounds() {

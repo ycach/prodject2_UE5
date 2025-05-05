@@ -5,31 +5,20 @@
 
 FlatMesh::FlatMesh(uint32 width, uint32 length, uint16 poligon_size, FVector start_pos)
 	: BaseMesh(width, length, poligon_size, start_pos) {
-	vertixes.SetNum(length + 1);
-	triangles.SetNum(length);
+
 }
 
 FlatMesh::~FlatMesh() {
 }
 
-void FlatMesh::Generation(UProceduralMeshComponent *procedural_mesh) {
+void FlatMesh::GenerationGrid() {
 	auto thread_grid = Async(EAsyncExecution::Thread, [&]() { GenerateGrid(); });
 	auto thread_uv = Async(EAsyncExecution::Thread, [&]() { GenerateUV(); });
 
-	
 	thread_uv.Wait();
 	thread_grid.Wait();
-
-	auto thread_triangles = Async(EAsyncExecution::Thread, [&]() { return GetSimpleTriangles(); });
-	auto thread_vertixes = Async(EAsyncExecution::Thread, [&]() { return GetSimpleVertixes(); });
-	
-
-	TArray<FVector> simple_vertixes = thread_vertixes.Get();
-	TArray<int32> simple_triangles = thread_triangles.Get();
-
-	procedural_mesh->CreateMeshSection(0, simple_vertixes, simple_triangles, TArray<FVector>(), uv, TArray<FColor>(),
-									   TArray<FProcMeshTangent>(), true);
 }
+
 
 void FlatMesh::GenerateUV() {
 	double aspect_ratio = (double)poligons_in_length / poligons_in_width;
